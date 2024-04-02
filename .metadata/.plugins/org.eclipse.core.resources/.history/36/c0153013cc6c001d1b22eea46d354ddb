@@ -1,0 +1,41 @@
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
+class aeiman
+
+{
+
+	public int value1;
+	public int value2;
+	public int value3;
+	public String value4;
+	public String value5;
+	
+	public aeiman(int value1,int value2,int value3)
+	{
+		this.value1 = value1;
+		this.value2 = value2;
+		this.value3 = value3;
+		
+	}
+	
+}
+
+public class key {
+
+	public static void main(String[] args) {
+		
+		aeiman t1 = new aeiman(2,4,5);
+		t1.value4 = "aeiman";
+		t1.value5 = "Imtiaz";
+		
+		System.out.format("value1 : %s\n ", t1.value1);
+		System.out.format("value2 : %s\n ", t1.value2);
+		System.out.format("value3 : %s\n ", t1.value3);
+		System.out.format("value4 : %s\n ", t1.value4);
+		System.out.format("value5 : %s\n ", t1.value5);
+
+	}
+
+}

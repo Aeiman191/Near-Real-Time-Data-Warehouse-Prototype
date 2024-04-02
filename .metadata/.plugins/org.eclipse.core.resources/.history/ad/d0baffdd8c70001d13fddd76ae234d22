@@ -1,0 +1,361 @@
+import java.sql.*;
+import java.sql.DriverManager;
+import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Date;
+import java.time.Month;
+import java.time.LocalDate;
+
+
+class Key {
+
+  public Double TRANSACTION_ID;
+  public String CUSTOMER_ID;
+  public String PRODUCT_ID;
+
+  public Key(Double TRANSACTION_ID, String CUSTOMER_ID, String PRODUCT_ID) {
+    this.TRANSACTION_ID = TRANSACTION_ID;
+    this.CUSTOMER_ID = CUSTOMER_ID;
+    this.PRODUCT_ID = PRODUCT_ID;
+  }
+}
+
+class Value {
+
+  public String STORE_ID;
+  public String STORE_NAME;
+  public String TIME_ID;
+  public Date T_DATE;
+  public Double QUANTITY;
+  public String CUSTOMER_NAME;
+  public String PRODUCT_NAME;
+  public String SUPPLIER_ID;
+  public String SUPPLIER_NAME;
+  public Double PRICE;
+  public Double SALE;
+
+  public Value(
+      String STORE_ID,
+      String STORE_NAME,
+      String TIME_ID,
+      Date T_DATE,
+      Double QUANTITY) {
+    this.STORE_ID = STORE_ID;
+    this.STORE_NAME = STORE_NAME;
+    this.TIME_ID = TIME_ID;
+    this.T_DATE = T_DATE;
+    this.QUANTITY = QUANTITY;
+  }
+
+  public void update(String CUSTOMER_NAME) {
+    this.CUSTOMER_NAME = CUSTOMER_NAME;
+  }
+
+  public void update1(
+      String PRODUCT_NAME,
+      String SUPPLIER_ID,
+      String SUPPLIER_NAME,
+      Double PRICE) {
+    this.PRODUCT_NAME = PRODUCT_NAME;
+    this.SUPPLIER_ID = SUPPLIER_ID;
+    this.SUPPLIER_NAME = SUPPLIER_NAME;
+    this.PRICE = PRICE;
+    this.SALE = QUANTITY * PRICE;
+  }
+}
+
+public class DW {
+
+  public static void main(String[] args) {
+    try {
+      Class.forName("com.mysql.cj.jdbc.Driver");
+      Connection con = DriverManager.getConnection(
+          "jdbc:mysql://localhost:3306/db",
+          "root",
+          "1234");
+      Statement stmt = con.createStatement();
+
+      // ************************* Creating partitions in Transactions Table *************************************//
+//
+//      System.out.println("creating partitions.....");
+//      String sql = "ALTER TABLE TRANSACTIONS DROP PRIMARY KEY";
+//      stmt.executeUpdate(sql);
+//      String sql1 = "ALTER TABLE TRANSACTIONS ADD PRIMARY KEY (TRANSACTION_ID,T_DATE) PARTITION BY HASH(MONTH(T_DATE)) PARTITIONS 12";
+//      stmt.executeUpdate(sql1);
+//      System.out.println("Partitions Created!");
+//
+//      // ***************************** Master Data Partitions **********************************************************//
+//
+//      System.out.println("Creating Master Data partitions.....");
+//      String sql2 = "ALTER TABLE CUSTOMERS PARTITION BY KEY() PARTITIONS 12";
+//      stmt.executeUpdate(sql2);
+//      String sql3 = "ALTER TABLE PRODUCTS PARTITION BY KEY() PARTITIONS 12";
+//      stmt.executeUpdate(sql3);
+//      System.out.println("Partitions Created!");
+
+      String partitions[] = {
+          "p0",
+          "p1",
+          "p2",
+          "p3",
+          "p4",
+          "p5",
+          "p6",
+          "p7",
+          "p8",
+          "p9",
+          "p10",
+          "p11",
+      };
+
+      Map<Key, Value> multiValueMap = new HashMap<Key, Value>();
+
+      //*************** TRANSACTIONS DATA LOOP **************************//
+
+      for (int i = 0; i < partitions.length; i++) {
+        System.out.format("Transaction Partition : %s\n ", i + 1);
+        String sql4 = "SELECT * FROM TRANSACTIONS partition(" + partitions[i] + ")";
+        String sql4_1 = "SELECT count(*) as Count FROM TRANSACTIONS partition(" +
+            partitions[i] +
+            ")";
+
+        PreparedStatement st2 = con.prepareStatement(sql4);
+        ResultSet partition = st2.executeQuery();
+
+        PreparedStatement st2_1 = con.prepareStatement(sql4_1);
+
+        ResultSet partition_count = st2_1.executeQuery();
+
+        int key_count;
+        int value_count;
+
+        while (partition_count.next()) {
+          key_count = partition_count.getInt("Count");
+          value_count = partition_count.getInt("Count");
+          System.out.format("COUNT: %s\n ", key_count);
+
+          Key K[] = new Key[key_count];
+          Value V[] = new Value[value_count];
+
+          
+          // ********************************* HASHMAP *****************************************//
+
+          
+          for (int z = 0; partition.next(); z++) {
+            K[z] = new Key(
+                partition.getDouble("TRANSACTION_ID"),
+                partition.getString("CUSTOMER_ID"),
+                partition.getString("PRODUCT_ID"));
+            V[z] = new Value(
+                partition.getString("STORE_ID"),
+                partition.getString("STORE_NAME"),
+                partition.getString("TIME_ID"),
+                partition.getDate("T_DATE"),
+                partition.getDouble("QUANTITY"));
+
+            multiValueMap.put(K[z], V[z]);
+          }
+
+          //****************** MASTER DATA LOOP ********************//
+          
+          
+          for (int j = 0; j < partitions.length; j++) {
+        	  
+            // System.out.format("Master Data Partition : %s\n ", j+1);
+
+            String sql5 = "SELECT * FROM CUSTOMERS partition(" + partitions[j] + ")";
+            PreparedStatement st3 = con.prepareStatement(
+                sql5,
+                ResultSet.TYPE_SCROLL_SENSITIVE,
+                ResultSet.CONCUR_UPDATABLE);
+            ResultSet Customer = st3.executeQuery();
+
+            String sql6 = "SELECT * FROM PRODUCTS partition(" + partitions[j] + ")";
+            PreparedStatement st4 = con.prepareStatement(
+                sql6,
+                ResultSet.TYPE_SCROLL_SENSITIVE,
+                ResultSet.CONCUR_UPDATABLE);
+            ResultSet Product = st4.executeQuery();
+            
+            
+
+
+            // ************ Comparison *****************//
+
+            
+            
+            for (Key key : multiValueMap.keySet()) {
+              while (Customer.next()) {
+                if ((key.CUSTOMER_ID).equals(Customer.getString("CUSTOMER_ID"))) {
+                  Value value = multiValueMap.get(key);
+                  value.update(Customer.getString("CUSTOMER_NAME"));
+                  
+                  
+                }
+              }
+              Customer.beforeFirst();
+
+              while (Product.next()) {
+                if ((key.PRODUCT_ID).equals(Product.getString("PRODUCT_ID"))) {
+                  Value value1 = multiValueMap.get(key);
+                  value1.update1(
+                      Product.getString("PRODUCT_NAME"),
+                      Product.getString("SUPPLIER_ID"),
+                      Product.getString("SUPPLIER_NAME"),
+                      Product.getDouble("PRICE"));
+                }
+              }
+              Product.beforeFirst();
+            }
+          }
+        }
+
+        try {
+          Class.forName("com.mysql.cj.jdbc.Driver");
+          Connection con1 = DriverManager.getConnection(
+              "jdbc:mysql://localhost:3306/dw",
+              "root",
+              "1234");
+          Statement stmt1 = con1.createStatement();
+//___________________________________________________________________________________________________
+          
+          for (Map.Entry<Key, Value> entry : multiValueMap.entrySet()) {
+        	  
+        	  
+
+            // ********************** FACT TABLE *************************//
+        	  
+        	  
+        	  
+
+            String sql_insert = "INSERT INTO TRANSACTIONS (TRANSACTION_ID,PRODUCT_ID,CUSTOMER_ID,STORE_ID,SUPPLIER_ID,TIME_ID,QUANTITY,SALE) VALUES(\""
+                +
+                entry.getKey().TRANSACTION_ID +
+                "\",\"" +
+                entry.getKey().PRODUCT_ID +
+                "\",\"" +
+                entry.getKey().CUSTOMER_ID +
+                "\",\"" +
+                entry.getValue().STORE_ID +
+                "\",\"" +
+                entry.getValue().SUPPLIER_ID +
+                "\",\"" +
+                entry.getValue().TIME_ID +
+                "\",\"" +
+                entry.getValue().QUANTITY +
+                "\",\"" +
+                entry.getValue().SALE +
+                "\")";
+
+            stmt1.executeUpdate(sql_insert);
+            
+            
+
+            // ****************** DIMENSION TABLE ***************************//
+            
+            
+
+            // ****************** CUSTOMER ****************************//
+            
+            
+            
+
+            String check_customer = "Select * from CUSTOMERS where CUSTOMER_ID = \"" + entry.getKey().CUSTOMER_ID
+                + "\"";
+            ResultSet ch_c = stmt1.executeQuery(check_customer);
+            if (!ch_c.isBeforeFirst()) {
+
+              String insert_customer = "INSERT INTO CUSTOMERS (CUSTOMER_ID,CUSTOMER_NAME) VALUES (\""
+                  + entry.getKey().CUSTOMER_ID + "\",\"" + entry.getValue().CUSTOMER_NAME + "\")";
+              stmt1.executeUpdate(insert_customer);
+            }
+                       
+            
+
+            // ****************** PRODUCT ****************************//
+                      
+            
+            
+
+            String check_product = "Select * from PRODUCTS where PRODUCT_ID = \"" + entry.getKey().PRODUCT_ID + "\"";
+            ResultSet ch_p = stmt1.executeQuery(check_product);
+            if (!ch_p.isBeforeFirst()) {
+
+              String insert_product = "INSERT INTO PRODUCTS (PRODUCT_ID,PRODUCT_NAME,PRICE) VALUES (\""
+                  + entry.getKey().PRODUCT_ID + "\",\"" + entry.getValue().PRODUCT_NAME + "\",\""
+                  + entry.getValue().PRICE + "\")";
+              stmt1.executeUpdate(insert_product);
+            }
+            
+            
+            
+
+            // ****************** STORE ****************************//
+            
+            
+            
+
+            String check_store = "Select * from STORE where STORE_ID = \"" + entry.getValue().STORE_ID + "\"";
+            ResultSet ch_s = stmt1.executeQuery(check_store);
+            if (!ch_s.isBeforeFirst()) {
+
+              String insert_store = "INSERT INTO STORE (STORE_ID,STORE_NAME) VALUES (\"" + entry.getValue().STORE_ID
+                  + "\",\"" + entry.getValue().STORE_NAME + "\")";
+              stmt1.executeUpdate(insert_store);
+            }
+            
+                       
+            
+
+            // ****************** SUPPLIER ****************************//
+            
+            
+            
+
+            String check_supplier = "Select * from SUPPLIER where SUPPLIER_ID = \"" + entry.getValue().SUPPLIER_ID
+                + "\"";
+            ResultSet ch_sp = stmt1.executeQuery(check_supplier);
+            if (!ch_sp.isBeforeFirst()) {
+
+              String insert_supplier = "INSERT INTO SUPPLIER (SUPPLIER_ID,SUPPLIER_NAME) VALUES (\""
+                  + entry.getValue().SUPPLIER_ID + "\",\"" + entry.getValue().SUPPLIER_NAME + "\")";
+              stmt1.executeUpdate(insert_supplier);
+            }
+
+            
+            
+            
+            // ****************** TIME ****************************//
+            
+            
+            
+
+            String check_time = "Select * from TIME where TIME_ID = \"" + entry.getValue().TIME_ID + "\"";
+            
+            ResultSet ch_t = stmt1.executeQuery(check_time);
+            if (!ch_t.isBeforeFirst()) {
+
+              String insert_time = "INSERT INTO TIME (TIME_ID,T_DATE) VALUES (\"" + entry.getValue().TIME_ID + "\",\""
+                  + entry.getValue().T_DATE + "\")";
+              stmt1.executeUpdate(insert_time);
+            }
+
+          }
+        } catch (Exception e) {
+          System.out.println(e);
+        }
+        
+        
+      //___________________________________________________________________________________________________________
+        multiValueMap.clear();
+      }
+
+      System.out.println("Done");
+
+    } catch (Exception e) {
+      System.out.println(e);
+    }
+  }
+}

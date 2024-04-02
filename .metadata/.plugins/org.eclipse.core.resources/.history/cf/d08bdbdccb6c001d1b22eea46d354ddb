@@ -1,0 +1,34 @@
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+
+class Value<v1,v2,v3,v4,v5>
+
+{
+
+	public v1 value1;
+	public v2 value2;
+	public v3 value3;
+	public v4 value4;
+	public v5 value5;
+	
+	public Value(v1 value1,v2 value2,v3 value3)
+	{
+		this.value1 = value1;
+		this.value2 = value2;
+		this.value3 = value3;
+		
+	}
+
+	
+	
+}
+
+public class key {
+
+	public static void main(String[] args) {
+		// TODO Auto-generated method stub
+
+	}
+
+}
